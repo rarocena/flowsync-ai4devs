@@ -27,7 +27,14 @@ export interface LoginInput {
   password: string;
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 async function request<T>(
   path: string,
@@ -49,10 +56,13 @@ async function request<T>(
       payload?.errors
         ?.map((error: { message: string }) => error.message)
         .join(" ") || "No pudimos completar la solicitud. Intentá de nuevo.";
-    throw new ApiError(message);
+    throw new ApiError(message, response.status);
   }
 
-  return payload.data as T;
+  // `/account/logout` responde sin envolver en `{ data: ... }` (bug del
+  // backend, ver CLAUDE.md). Con fallback a `payload` seguimos siendo
+  // compatibles con ese endpoint sin dejar de exigir el wrapper en el resto.
+  return (payload?.data ?? payload) as T;
 }
 
 export function signup(input: SignupInput) {

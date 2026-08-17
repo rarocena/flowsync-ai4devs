@@ -22,7 +22,7 @@ export function ProfilePage() {
     getProfile(token)
       .then(setProfile)
       .catch(async (err) => {
-        if (err instanceof ApiError) {
+        if (err instanceof ApiError && err.status === 401) {
           // El backend rechazó el token (expirado o revocado): cerramos
           // la sesión local en vez de dejar al usuario varado en /profile.
           await logout();

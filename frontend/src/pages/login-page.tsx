@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth-context";
 import { ApiError } from "@/lib/api";
@@ -20,6 +20,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   if (isAuthenticated) {
     return <Navigate to="/profile" replace />;
@@ -27,7 +28,11 @@ export function LoginPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (isSubmitting) return;
+    // El ref cierra sincrónicamente la ventana entre este submit y el
+    // re-render que actualiza `isSubmitting`, algo que el state por sí
+    // solo no garantiza ante un doble Enter/click muy rápido.
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -38,6 +43,7 @@ export function LoginPage() {
         err instanceof ApiError ? err.message : "No pudimos iniciar sesión.",
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }

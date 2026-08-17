@@ -19,11 +19,23 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function isStoredSession(value: unknown): value is StoredSession {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<StoredSession>;
+  return (
+    typeof candidate.token === "string" &&
+    candidate.token.length > 0 &&
+    typeof candidate.user === "object" &&
+    candidate.user !== null
+  );
+}
+
 function readStoredSession(): StoredSession | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as StoredSession;
+    const parsed: unknown = JSON.parse(raw);
+    return isStoredSession(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -37,6 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function persist(next: StoredSession | null) {
     setSession(next);
     if (next) {
+      // Deuda técnica aceptada: el token queda en localStorage en texto
+      // plano, expuesto a XSS. No hay soporte de cookie httpOnly en el
+      // backend actual; aceptable para este proyecto de entrenamiento.
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } else {
       localStorage.removeItem(STORAGE_KEY);
