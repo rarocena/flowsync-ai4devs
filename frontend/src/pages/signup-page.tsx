@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth-context";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 
 export function SignupPage() {
-  const { signup } = useAuth();
+  const { signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,8 +23,13 @@ export function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  if (isAuthenticated) {
+    return <Navigate to="/profile" replace />;
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
 
     if (password !== passwordConfirmation) {

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth-context";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,20 @@ import {
 } from "@/components/ui/card";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  if (isAuthenticated) {
+    return <Navigate to="/profile" replace />;
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     setIsSubmitting(true);
     try {

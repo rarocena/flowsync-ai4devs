@@ -21,14 +21,17 @@ export function ProfilePage() {
     if (!token) return;
     getProfile(token)
       .then(setProfile)
-      .catch((err) => {
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : "No pudimos cargar tu perfil.",
-        );
+      .catch(async (err) => {
+        if (err instanceof ApiError) {
+          // El backend rechazó el token (expirado o revocado): cerramos
+          // la sesión local en vez de dejar al usuario varado en /profile.
+          await logout();
+          navigate("/login", { replace: true });
+          return;
+        }
+        setError("No pudimos cargar tu perfil.");
       });
-  }, [token]);
+  }, [token, logout, navigate]);
 
   async function handleLogout() {
     await logout();

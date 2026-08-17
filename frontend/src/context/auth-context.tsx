@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import * as api from "@/lib/api";
 
 const STORAGE_KEY = "flowsync:auth";
@@ -18,7 +12,6 @@ interface AuthContextValue {
   user: api.User | null;
   token: string | null;
   isAuthenticated: boolean;
-  isReady: boolean;
   signup: (input: api.SignupInput) => Promise<void>;
   login: (input: api.LoginInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -37,13 +30,9 @@ function readStoredSession(): StoredSession | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<StoredSession | null>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    setSession(readStoredSession());
-    setIsReady(true);
-  }, []);
+  const [session, setSession] = useState<StoredSession | null>(() =>
+    readStoredSession(),
+  );
 
   function persist(next: StoredSession | null) {
     setSession(next);
@@ -75,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     token: session?.token ?? null,
     isAuthenticated: session !== null,
-    isReady,
     signup,
     login,
     logout,
