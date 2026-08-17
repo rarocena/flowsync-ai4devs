@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "atlassian-mcp-oauth-wsl-v1": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    }
+  }
+}
