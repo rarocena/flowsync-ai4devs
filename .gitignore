@@ -20,6 +20,9 @@ node_modules/
 coverage/
 *.log
 
+# Playwright MCP
+.playwright-mcp/
+
 # SO / editores
 .DS_Store
 .vscode/
