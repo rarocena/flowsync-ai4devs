@@ -4,23 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es este repo
 
-FlowSync: proyecto de práctica del curso (gestión de tareas en equipo). Monorepo sin workspaces ni `package.json` raíz — **todos los comandos se ejecutan desde `backend/` o desde `frontend/`**.
+FlowSync: proyecto de práctica del curso (gestión de tareas en equipo). Monorepo sin workspaces ni `package.json` raíz — **todos los comandos se ejecutan desde `backend/` o desde `frontend/`**, salvo los atajos de `make` y `docker compose`, que van desde la raíz.
 
-- `backend/` — API AdonisJS 7 + Lucid 22 + SQLite, escucha en `http://localhost:3333`
+- `backend/` — API AdonisJS 7 + Lucid 22 + PostgreSQL 17 (en Docker, `compose.yaml`), escucha en `http://localhost:3333`
 - `frontend/` — React 19 + Vite 8, escucha en `http://localhost:5173`
 
 La rama `s1/start` es el punto de partida de los alumnos; `main` es la base del repo cliente.
 
 ## Comandos
 
+### Bases de datos (desde la raíz)
+
+Dos servicios en `compose.yaml`, los dos con la imagen `pgvector/pgvector:pg17` y healthcheck: `db` (desarrollo, puerto **54410**, volumen `db-data`) y `db-test` (pruebas, puerto **54411**, en `tmpfs`: se vacía en cada parada).
+
+```bash
+make db-up     # docker compose up -d --wait: no vuelve hasta que las dos están sanas
+make db-down   # docker compose down (sin -v: la de desarrollo conserva sus datos)
+make migrate   # migra las dos (levanta antes si hace falta)
+make test      # levanta, migra db-test y corre la batería del backend contra ella
+```
+
 ### Backend (`cd backend`)
 
 ```bash
 npm install
 cp .env.example .env && node ace generate:key   # solo la primera vez
-node ace migration:run                          # crea tmp/db.sqlite3 y regenera database/schema.ts
+node ace migration:run                          # migra db (54410) y regenera database/schema.ts
+NODE_ENV=test node ace migration:run            # migra db-test (54411)
 npm run dev                                     # node ace serve --hmr
-npm test                                        # node ace test
+npm test                                        # node ace test, contra db-test (ya arriba y migrada)
 npm run openapi:generate                        # escribe el documento OpenAPI en docs/api/openapi.json
 npm run openapi:check                           # compara el versionado con el regenerado; sale 1 si difieren
 npm run lint                                    # eslint
@@ -38,7 +50,7 @@ node ace test --groups=... --tags=... --failed --watch
 node ace make:test --suite=functional # scaffolding de un fichero de test
 ```
 
-Ojo con la BD en tests: `config/database.ts` define una única conexión SQLite apuntando a `app.tmpPath('db.sqlite3')` sin override por entorno, así que las suites functional pegan contra el **mismo fichero** que el servidor de desarrollo. `.env.test` solo cambia `SESSION_DRIVER=memory`. Si añades tests que escriben, aísla con los hooks de `testUtils.db()` (truncate / transacción global) o el estado se filtra entre runs.
+Ojo con la BD en tests: `config/database.ts` define una única conexión `pg` que lee `DB_*` del entorno. `.env` la apunta a `db`; `.env.test`, que AdonisJS solo carga con `NODE_ENV=test` (lo fija `bin/test.ts`) y que pisa a `.env`, la apunta a `db-test` y además pone `SESSION_DRIVER=memory`. La suite **no** comparte base con el servidor de desarrollo, pero dentro de una misma vida del contenedor `db-test` sí comparte estado entre runs: aísla con los hooks de `testUtils.db()` (los tests actuales usan transacción global). Las secuencias de PostgreSQL no se deshacen con el rollback, así que los ids siguen creciendo entre tests y entre runs hasta el siguiente `make db-down`.
 
 Otros comandos útiles: `node ace list:routes`, `node ace make:controller|model|migration|validator|transformer|service`, `node ace migration:fresh`, `node ace repl`.
 

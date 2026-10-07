@@ -1,6 +1,7 @@
 # FlowSync — atajos de desarrollo.
 #
-# Requisitos: Node.js + npm y GNU Make.
+# Requisitos: Node.js + npm, GNU Make y Docker con Compose v2 (las dos bases
+# de datos corren en contenedores; ver compose.yaml).
 #   - macOS:        make viene con las Command Line Tools de Xcode.
 #   - Linux / WSL:  sudo apt install make   (o el equivalente de tu distro)
 #
@@ -14,7 +15,7 @@ BACKEND  := backend
 FRONTEND := frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help setup start install env migrate clean
+.PHONY: help setup start install env migrate migrate-dev migrate-test clean db-up db-down test
 
 # La ayuda se genera a partir de los comentarios `## ...` de cada target, para
 # que no haya un segundo listado que mantener a mano y que pueda divergir.
@@ -61,9 +62,44 @@ env:
 		cd $(BACKEND) && node ace generate:key; \
 	fi
 
-migrate:
-	@echo "🗃️  Ejecutando migraciones..."
+migrate: migrate-dev migrate-test ## Migra las dos bases: la de desarrollo y la de pruebas
+
+migrate-dev: db-up
+	@echo "🗃️  Migrando la base de desarrollo (db, puerto 54410)..."
 	@cd $(BACKEND) && node ace migration:run
+
+# NODE_ENV=test es lo que hace que AdonisJS cargue `backend/.env.test`, que es
+# el que apunta a db-test. Sin él, esto migraría la de desarrollo otra vez.
+migrate-test: db-up
+	@echo "🗃️  Migrando la base de pruebas (db-test, puerto 54411)..."
+	@cd $(BACKEND) && NODE_ENV=test node ace migration:run
+
+# ---------------------------------------------------------------------------
+# bases de datos
+# ---------------------------------------------------------------------------
+
+# `--wait` no vuelve hasta que los healthchecks de las dos dan «sano», y sale con
+# error si alguno acaba en «unhealthy». Todo target que toca una base depende de
+# este, así que nada se conecta mientras la imagen todavía está creando la base.
+db-up: ## Levanta las dos bases y espera a que estén sanas
+	@command -v docker >/dev/null 2>&1 || { echo "❌ Docker no está instalado."; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "❌ Docker no responde: arráncalo y vuelve a intentarlo."; exit 1; }
+	@echo "🐘 Levantando db (54410) y db-test (54411) y esperando a que estén sanas..."
+	@docker compose up -d --wait
+
+# Sin `-v`: el volumen de desarrollo sobrevive. La de pruebas vive en un tmpfs,
+# así que se pierde en cada parada, que es justo lo que se busca.
+db-down: ## Para las dos bases (la de pruebas se vacía, la de desarrollo no)
+	@docker compose down
+
+# ---------------------------------------------------------------------------
+# test
+# ---------------------------------------------------------------------------
+
+# db-test se vacía en cada parada, así que se migra justo antes de la batería.
+test: migrate-test ## Corre las pruebas del backend contra db-test
+	@echo "🧪 Corriendo las pruebas del backend contra db-test..."
+	@cd $(BACKEND) && npm test
 
 # ---------------------------------------------------------------------------
 # start
@@ -91,7 +127,7 @@ migrate:
 # delante a él también. Aislar los servidores en su propio grupo con `set -m`
 # no vale: los dejaría en segundo plano y el primer `read` de stdin les
 # provocaría un SIGTTIN, colgando el "Press h" de Adonis y los atajos de Vite.
-start: ## Levanta backend y frontend a la vez
+start: db-up ## Levanta las bases, el backend y el frontend
 	@if [ ! -d $(BACKEND)/node_modules ] || [ ! -d $(FRONTEND)/node_modules ]; then \
 		echo "❌ Faltan dependencias. Ejecuta primero: make setup"; exit 1; \
 	fi

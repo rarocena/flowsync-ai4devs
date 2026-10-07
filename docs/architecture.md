@@ -4,10 +4,10 @@
 
 El diagrama muestra las piezas de FlowSync que se ejecutan por separado y cómo hablan entre
 sí: la SPA de React que corre en el navegador, la API de AdonisJS que escucha en el puerto
-3333, el fichero SQLite donde vive todo el estado, y el `localStorage` del navegador, que es
+3333, la base PostgreSQL donde vive todo el estado, y el `localStorage` del navegador, que es
 el único sitio donde persiste la sesión. Es un diagrama de contenedores, así que no entra en
 los controladores, modelos ni transformers de dentro de la API: eso queda resumido debajo.
-Todo lo dibujado está leído del código —`start/routes.ts`, `config/database.ts`,
+Todo lo dibujado está leído del código —`start/routes.ts`, `config/database.ts`, `compose.yaml`,
 `config/auth.ts`, `frontend/src/lib/api.ts` y `frontend/src/routes/app-routes.tsx`—; lo que no
 se ha podido verificar leyendo ficheros no aparece.
 
@@ -21,7 +21,7 @@ C4Container
         Container(spa, "SPA de FlowSync", "React 19 + react-router + Vite 8 + Tailwind v4 + shadcn/ui", "Pantallas de login registro perfil lista de tareas y tarea suelta. Los guards ProtectedRoute y PublicOnlyRoute deciden a que se llega con sesion y a que sin ella")
         ContainerDb(storage, "localStorage del navegador", "Web Storage API", "Guarda el token de acceso bajo la clave flowsync.token. Al arrancar la SPA lo revalida contra el perfil antes de darlo por bueno")
         Container(api, "API de FlowSync", "AdonisJS 7 sobre Node escuchando en el puerto 3333", "Expone las rutas bajo /api/v1. Valida con VineJS 4 autentica con access tokens opacos y devuelve toda respuesta envuelta en data por el serializer del ApiProvider")
-        ContainerDb(db, "Base de datos de FlowSync", "SQLite mediante better-sqlite3 en el fichero backend/tmp/db.sqlite3", "Tablas users auth_access_tokens y tasks. El esquema se genera desde las migraciones")
+        ContainerDb(db, "Base de datos de FlowSync", "PostgreSQL 17 con la imagen pgvector/pgvector:pg17 en Docker, servicio db de compose.yaml en el puerto 54410", "Tablas users auth_access_tokens y tasks. El esquema se genera desde las migraciones")
     }
 
     Rel(miembro, spa, "Usa desde el navegador", "HTTP en el puerto 5173")
@@ -70,8 +70,11 @@ C4Container
   [`providers/api_provider.ts`](../backend/providers/api_provider.ts), que inyecta
   `ctx.serialize()` en cada `HttpContext`.
 
-**Base de datos** — una única conexión SQLite declarada en
-[`backend/config/database.ts`](../backend/config/database.ts), sin override por entorno. Tres
+**Base de datos** — una única conexión `pg` declarada en
+[`backend/config/database.ts`](../backend/config/database.ts), que lee host, puerto, usuario,
+contraseña y base de las variables `DB_*`. Con `.env` apunta al servicio `db` de
+[`compose.yaml`](../compose.yaml) (puerto 54410, con volumen); con `.env.test`, que solo se carga
+con `NODE_ENV=test`, al servicio `db-test` (puerto 54411, en `tmpfs`). Tres
 tablas creadas por las migraciones de [`backend/database/migrations/`](../backend/database/migrations/):
 `users`, `auth_access_tokens` y `tasks`, esta última con `assignee_id` apuntando a `users` con
 `onDelete CASCADE` y una `due_date` nulable.
@@ -96,6 +99,7 @@ vencimiento. La sesión vive en [`frontend/src/auth/`](../frontend/src/auth/) y 
 - **El guard `web` de sesión no se dibuja.** Está configurado en `config/auth.ts` junto al
   guard `api`, pero ninguna ruta lo usa; el `default` es `api` y toda la autenticación real va
   por access tokens opacos.
-- **Los tests no son un contenedor.** Las suites de `backend/tests/` no se ejecutan en
-  producción; conviene saber, eso sí, que pegan contra el mismo fichero SQLite que el servidor
-  de desarrollo, porque `config/database.ts` no tiene override por entorno.
+- **Los tests no son un contenedor, ni su base tampoco.** Las suites de `backend/tests/` no se
+  ejecutan en producción, y la base contra la que corren, `db-test`, es un servicio aparte de
+  `compose.yaml` que solo existe para ellas: en memoria y vacía tras cada parada. No se dibuja
+  porque no forma parte del sistema que usa nadie.

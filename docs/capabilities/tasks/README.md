@@ -108,14 +108,22 @@ empiezan por «La interfaz SHALL…».
 
 ### Preparar el backend
 
+Las dos bases de datos (`db` para desarrollo y `db-test` para la batería) son contenedores de
+[`compose.yaml`](../../../compose.yaml), y se levantan desde la raíz del repo:
+
 ```bash
+make db-up                                      # levanta las dos y espera a que estén sanas
+make migrate                                    # migra las dos
+
 cd backend
 npm install
 cp .env.example .env && node ace generate:key   # solo la primera vez
-node ace migration:run                          # crea tmp/db.sqlite3
 ```
 
 ### Tests automáticos
+
+`make test`, desde la raíz, levanta `db-test`, la migra y corre la batería entera. Desde `backend/`,
+con `db-test` ya arriba y migrada:
 
 ```bash
 node ace test                                   # todo
@@ -132,11 +140,13 @@ señal de que la capability cumpla su spec.
 
 Dos cosas que hay que saber antes de escribir un test aquí:
 
-- La suite functional pega contra **el mismo fichero SQLite que el servidor de desarrollo**:
-  [`config/database.ts`](../../../backend/config/database.ts) declara una sola conexión sin override
-  por entorno. Aísla siempre con `testUtils.db().withGlobalTransaction()` en un `group.each.setup`,
-  como hacen los tests existentes. **No** uses truncate: se llevaría por delante los datos con los que
-  estés trabajando.
+- La suite functional corre contra **`db-test`**, no contra la base de desarrollo: `.env.test`, que
+  solo se carga con `NODE_ENV=test`, apunta la única conexión de
+  [`config/database.ts`](../../../backend/config/database.ts) al puerto 54411. Esa base se vacía en
+  cada parada, pero entre dos runs seguidos con el contenedor vivo sí conserva lo que se escriba.
+  Aísla siempre con `testUtils.db().withGlobalTransaction()` en un `group.each.setup`, como hacen
+  los tests existentes. Y no supongas ids concretos: en PostgreSQL las secuencias no se deshacen
+  con el rollback.
 - Un test por scenario, citando el requisito en la cabecera del fichero. Es lo que permite leer la
   spec y saber qué falta.
 

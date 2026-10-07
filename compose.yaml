@@ -1,0 +1,55 @@
+# Las dos bases de datos de FlowSync: `db` para desarrollo y `db-test` para la
+# batería de pruebas. El backend corre fuera de Docker y llega a ellas por los
+# puertos publicados. Se levantan con `make db-up`, que no vuelve hasta que las
+# dos están sanas (`docker compose up -d --wait`).
+#
+# Los healthchecks van por TCP (`-h 127.0.0.1`) a propósito. Cuando la imagen
+# arranca con el directorio de datos vacío, crea la base con un servidor
+# temporal que solo escucha por socket unix, y luego lo reinicia. Un
+# `pg_isready` por socket daría «sano» durante ese servidor temporal, y la
+# primera migración se encontraría la conexión rechazada.
+#
+# Los puertos se publican solo en 127.0.0.1: son bases locales con una
+# contraseña de mentira, y no tienen por qué verse desde la red.
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: flowsync
+      POSTGRES_PASSWORD: flowsync
+      POSTGRES_DB: flowsync
+    ports:
+      - "127.0.0.1:54410:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U flowsync -d flowsync"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  db-test:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: flowsync
+      POSTGRES_PASSWORD: flowsync
+      POSTGRES_DB: flowsync_test
+    ports:
+      - "127.0.0.1:54411:5432"
+    # En memoria y sin volumen. No basta con no declarar `volumes:`: la imagen
+    # declara VOLUME sobre PGDATA, y Docker crearía un volumen anónimo que
+    # Compose conserva al recrear el contenedor. El tmpfs ocupa ese mismo punto
+    # de montaje, así que no hay volumen y los datos se pierden en cada parada.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U flowsync -d flowsync_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  db-data:
