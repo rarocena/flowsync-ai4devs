@@ -1,26 +1,40 @@
 # Hallazgos
 
-Aquí van **las tres líneas** del ejercicio, una por cada punto de abajo. Es lo único que hay que
-traer hecho: un cambio de motor a medias con estas tres líneas escritas vale más que lo contrario,
-porque lo que se discute en el directo es dónde te chocaste.
 
-Escribe **una sola línea por punto**, con tus palabras y con lo que mediste, no con lo que suponías.
+## 1. Cuántos de tus casos nuevos fallaron y cuántos de los que ya había siguieron en verde, con la cifra que te dio la pantalla.
 
-## 1. Las filas que cambian y la rama
+make test-e2e dio Tests 44 passed, 3 failed (47): de mis 7 casos nuevos fallaron 3 y pasaron 4, y los 40 que ya había siguieron en verde.
 
-Cuántas filas cambian de valor en tu cambio de esquema, medido con una consulta, y en qué rama del
-árbol de reversibilidad cae. Si tu migración no toca datos, dilo tal cual: también es una respuesta.
 
--
+## 2. Cuál de tus casos nuevos PASÓ, si alguno pasó, y por qué crees que pasó. Es la pregunta más interesante del ejercicio, y la respuesta no está en ningún sitio: se deduce mirando qué tienen en común los que fallaron.
 
-## 2. Lo que la batería de pruebas no podía ver
+Casos funcionales que pasaron:
+- Vencer hoy todavía no es estar vencida
+- Fecha futura
+- Sin fecha no se vence nunca
+- Una tarea hecha con la fecha pasada
 
-Una cosa que la batería de pruebas no podía ver. Si no encontraste ninguna, escribe qué buscaste y dónde.
 
--
+Casos funcionales que no pasaron:
+En la salida de la ejecución de los test se puede ver lo siguiente:
+- Fecha del día anterior
+    - Al consultar si está vencida para la fecha de referencia, devuelve falso. 
+	- Debe existir una tarea con fecha de vencimiento anterior a la fecha de referencia
+- Darla por hecha la deja de vencer
+	- Falla en PRECONDICIÓN (no es el THEN): antes del cambio la tarea tendría que llegar vencida
+- Aplazar resuelve el vencimiento
+	- Falla en PRECONDICIÓN (no es el THEN): antes del cambio la tarea tendría que llegar vencida
 
-## 3. Tu duda
+Los 4 casos que pasaron, esperaban que al consultar la isOverdue estuviera false.
 
-De qué dudaste, o qué no pudiste comprobar.
+Los 3 casos que fallaron esparaban que al consultar la tarea en juego isOverdue se devolviera en true (la tarea está vencida).
 
--
+
+La conclusión: isOverdue nunca sale true, así que los 4 que pasaron lo hacen porque esperan el valor que sale siempre, no porque la regla esté bien. Una implementación que devolviera siempre false los pasaría igual.
+
+
+## 3. **De qué dudaste**, o qué no pudiste comprobar.
+
+No puedo saber si «Una tarea hecha con la fecha pasada» pasa porque la regla mira el estado done o solo porque isOverdue nunca sale true. Mientras ningún caso dé true, ese verde no distingue una cosa de la otra.
+
+Los THEN de «Darla por hecha» y «Aplazar» no se llegaron a ejecutar, porque los dos caen en la precondición: no sé si esos dos comportamientos funcionan.
